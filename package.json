@@ -1,7 +1,6 @@
 {
   "name": "@majorgilles/pi-grill-me",
   "version": "0.1.0",
-  "private": true,
   "description": "Socratic planning and shared-understanding sessions for pi.",
   "type": "module",
   "keywords": [
@@ -14,6 +13,13 @@
   "repository": {
     "type": "git",
     "url": "https://github.com/majorgilles/pi-grill-me.git"
+  },
+  "homepage": "https://github.com/majorgilles/pi-grill-me#readme",
+  "bugs": {
+    "url": "https://github.com/majorgilles/pi-grill-me/issues"
+  },
+  "publishConfig": {
+    "access": "public"
   },
   "pi": {
     "extensions": [
