@@ -1,0 +1,33 @@
+{
+  "name": "@majorgilles/pi-grill-me",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Socratic planning and shared-understanding sessions for pi.",
+  "type": "module",
+  "keywords": [
+    "pi-package",
+    "pi-extension",
+    "pi",
+    "planning",
+    "socratic"
+  ],
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/majorgilles/pi-grill-me.git"
+  },
+  "pi": {
+    "extensions": [
+      "./index.ts"
+    ]
+  },
+  "peerDependencies": {
+    "@earendil-works/pi-coding-agent": "*",
+    "@earendil-works/pi-tui": "*",
+    "typebox": "*"
+  },
+  "files": [
+    "index.ts",
+    "README.md",
+    "DESIGN.md"
+  ]
+}
