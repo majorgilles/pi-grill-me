@@ -24,7 +24,7 @@ pi -e git:github.com/majorgilles/pi-grill-me
 - `/grill status` — show current grill state.
 - `/grill intensity gentle|standard|hard|adversarial` — set Socratic intensity.
 - `/grill intent auto|plan|learn|research|content|decide` — set the intent preset.
-- `/grill output <outputs>` — set one or more preferred output formats, such as `design-doc`, `prd`, `adr`, `issues`, `summary`, or `design-doc,issues`. This is a preference only; Grill Me still explicitly asks/gets approval before producing outputs.
+- `/grill output <outputs>` — set one or more preferred output formats, such as `github-issues`, `design-doc`, `readme`, `adr`, `prd`, `summary`, or `design-doc,github-issues`. This is a preference only; Grill Me still explicitly asks/gets approval before producing outputs.
 - `/grill research off|ask|auto` — configure whether the assistant should inspect/research while grilling.
 
 ## Behavior
@@ -39,6 +39,24 @@ While active, the extension injects Grill Me instructions into the agent context
 - `grill_finish_output_phase`
 
 During interview mode it blocks `edit`, `write`, and bash commands that appear mutating. Grill Me does not assume a default output mode; when the interview is ready to end, the assistant must enter the hardcoded output-selection phase, ask which output(s) to produce, and support one or many outputs, such as a design doc and uploaded GitHub issues. Output production can only start after the user approves a concrete plan from that selection phase; choosing to continue grilling or stop without output is recorded separately.
+
+## Output selection options
+
+The mandatory output-selection phase explicitly names concrete artifact options, including:
+
+- GitHub issues
+- Design doc
+- README.md
+- ADR doc
+- PRD
+- Implementation plan
+- Research brief
+- Summary / decision memo
+- Tutorial / content outline
+- Test plan / QA checklist
+- Changelog / release notes
+
+The user can choose one, choose multiple, customize the set, continue grilling, review the checkpoint, or stop without producing output.
 
 ## Acknowledgements
 

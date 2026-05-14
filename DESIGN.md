@@ -47,7 +47,7 @@ The user interacts through normal chat, not a rigid wizard. The extension adds:
 - `/grill status`: show operational state.
 - `/grill intensity <gentle|standard|hard|adversarial>`: set intensity. Default: `standard`.
 - `/grill intent <auto|plan|learn|research|content|decide>`: set intent preset. Default: `auto`.
-- `/grill output <outputs>`: set one or more output preferences, e.g. `design-doc`, `prd`, `adr`, `issues`, `summary`, or comma-separated combinations. This preference is never production approval; the assistant still explicitly asks/confirm outputs later.
+- `/grill output <outputs>`: set one or more output preferences, e.g. `github-issues`, `design-doc`, `readme`, `adr`, `prd`, `summary`, or comma-separated combinations. This preference is never production approval; the assistant still explicitly asks/confirm outputs later.
 - `/grill research <off|ask|auto>`: set research behavior. Default: `auto`.
 
 ### Checkpoint
@@ -94,8 +94,22 @@ There is no default output mode for a grilling session. A missing output prefere
 
 Output generation should choose both:
 
-- **destination/format**: design doc, PRD, ADRs, GitHub issues, summary, etc.; one or more destinations may be chosen.
+- **destination/format**: explicit options include GitHub issues, design doc, README.md, ADR doc(s), PRD, implementation plan, research brief, summary/decision memo, tutorial/content outline, test plan/QA checklist, and changelog/release notes; one or more destinations may be chosen or customized.
 - **strategy**: implementation vertical slices, tutorial chapters, research investigations, content outline, ADR candidates, milestone experiments, etc.
+
+The output-selection phase should show the explicit destination catalog before asking the user to decide:
+
+- GitHub issues
+- Design doc
+- README.md
+- ADR doc
+- PRD
+- Implementation plan
+- Research brief
+- Summary / decision memo
+- Tutorial / content outline
+- Test plan / QA checklist
+- Changelog / release notes
 
 For example, GitHub issues might mean:
 
@@ -152,7 +166,7 @@ When active, `before_agent_start` appends grill instructions to the system promp
 - inspect code/files instead of asking when research mode allows and the answer is discoverable,
 - do not implement during interview,
 - update checkpoint with `grill_update_checkpoint` before the next question whenever shared understanding changes,
-- when ready, call `grill_enter_output_selection_phase` to enter the mandatory hardcoded output-selection phase, explicitly ask for one or more outputs/continue/review/stop, and wait for the user's selection,
+- when ready, call `grill_enter_output_selection_phase` to enter the mandatory hardcoded output-selection phase, explicitly list concrete output options (GitHub issues, design doc, README.md, ADR doc, PRD, etc.), ask for one or more outputs/continue/review/stop, and wait for the user's selection,
 - after output approval from that phase, call `grill_enter_output_phase` before using mutating tools,
 - if the user continues grilling or stops without output, call `grill_finish_output_selection_phase`.
 
@@ -194,7 +208,7 @@ Behavior:
 Parameters:
 
 - `readinessRationale`: why shared understanding is sufficient to leave interview mode.
-- `recommendedOutputs`: recommended output destination(s)/format(s), or none.
+- `recommendedOutputs`: recommended output destination(s)/format(s) from the explicit catalog, or none.
 - `recommendedStrategy`: recommended output strategy, distinct from destination.
 - `question`: the explicit output-selection question.
 - `alternatives`: 2-5 choices for Tab autocomplete.
