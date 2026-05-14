@@ -39,3 +39,7 @@ While active, the extension injects Grill Me instructions into the agent context
 During interview mode it blocks `edit`, `write`, and bash commands that appear mutating. Grill Me does not assume a default output mode; at readiness it explicitly asks which output(s) to produce and supports one or many outputs, such as a design doc and uploaded GitHub issues. After the user approves a concrete output plan, the assistant can enter output phase and create only the approved artifacts.
 
 See [DESIGN.md](./DESIGN.md) for the design notes.
+
+## License
+
+This source is available under the [PolyForm Noncommercial License 1.0.0](./LICENSE). You may download, copy, modify, and share it for noncommercial purposes. Commercial use is not permitted without separate written permission.
