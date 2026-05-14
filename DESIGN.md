@@ -126,7 +126,7 @@ Before writing files or creating issues:
 - For file outputs: draft first, then write after approval.
 - For GitHub issues: preview issue titles/bodies/labels first, then create after approval.
 
-During output selection, the user may choose to continue grilling, review the checkpoint, stop without output, or approve one or more concrete outputs. During approved output production, the assistant can enter an output phase that permits the required tools for the job.
+During output selection, the user may choose to continue grilling, review the checkpoint, stop without output, or approve one or more concrete outputs. During approved output production, the assistant can enter an output phase that permits the required tools for the job. Approved mutating actions, such as creating GitHub issues, should not be refused merely because they mutate state; if pi, a CLI, a platform, or the OS blocks the mutation for permission/authentication reasons, the assistant must ask the user for the needed permission, confirmation, credentials, or a revised plan instead of bypassing the gate.
 
 ## Technical Design
 
@@ -168,6 +168,7 @@ When active, `before_agent_start` appends grill instructions to the system promp
 - update checkpoint with `grill_update_checkpoint` before the next question whenever shared understanding changes,
 - when ready, call `grill_enter_output_selection_phase` to enter the mandatory hardcoded output-selection phase, explicitly list concrete output options (GitHub issues, design doc, README.md, ADR doc, PRD, etc.), ask for one or more outputs/continue/review/stop, and wait for the user's selection,
 - after output approval from that phase, call `grill_enter_output_phase` before using mutating tools,
+- during output phase, perform only approved mutations; if a permission/authentication/tool gate blocks an approved mutation, ask the user for the needed permission, confirmation, credentials, or plan change instead of refusing the approved output or bypassing the gate,
 - if the user continues grilling or stops without output, call `grill_finish_output_selection_phase`.
 
 ### Tools
@@ -246,7 +247,8 @@ Behavior:
 - requires the mandatory `output-selection` phase first,
 - marks `phase = "output"` and `outputPhase = true` for the approved 1..n output plan,
 - persists state,
-- displays that output tools are enabled.
+- displays that output tools are enabled, and
+- instructs the assistant to ask the user for permission/authentication if an approved mutation is blocked by pi, a CLI, a platform, or the OS.
 
 #### `grill_finish_output_phase`
 
@@ -264,7 +266,7 @@ While `active && !outputPhase`:
 - allow read/search/inspection commands,
 - allow checkpoint/output-selection/output-phase tools.
 
-When `outputPhase` is true, the assistant may use tools required for the approved output step.
+When `outputPhase` is true, the assistant may use tools required for the approved output step. If an approved mutating action is blocked by permissions/authentication (for example `gh issue create` requiring login or confirmation), the assistant should ask the user for the required permission, credentials, or plan change rather than bypassing the gate or claiming success.
 
 ## MVP Scope
 
