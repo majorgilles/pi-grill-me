@@ -12,12 +12,12 @@ The extension should be useful both for:
 ## Core Principles
 
 1. **Shared understanding first**: the goal is not to immediately implement, but to converge on a clear, useful understanding of the user's intent.
-2. **Adaptive, not hardcoded**: avoid fixed product/UX/architecture phases. Use adaptive dimensions such as objective, constraints, outcome mode, risks, tradeoffs, unknowns, and next steps.
+2. **Adaptive interview, hardcoded ending**: avoid fixed product/UX/architecture interview phases. Use adaptive dimensions such as objective, constraints, outcome mode, risks, tradeoffs, unknowns, and next steps. The final output-selection phase is the one mandatory hardcoded phase before stopping or producing outputs.
 3. **Mostly one question at a time**: default pacing asks one focused question per assistant turn, with small grouped questions allowed only when inseparable.
 4. **Alternatives included by default**: each grill question should include 2-5 concrete answer alternatives, including the assistant's recommended answer, and expose them through Tab autocomplete.
 5. **Stateful memory**: maintain a single evolving Markdown checkpoint representing current shared understanding.
 6. **Automatic checkpointing**: whenever shared understanding changes meaningfully, the assistant must update the checkpoint before asking the next question.
-7. **Read-only during grilling**: while interviewing/planning, the extension blocks implementation mutations. Output production is a deliberate workflow step and can temporarily use the tools required for that output.
+7. **Read-only during grilling**: while interviewing/planning, the extension blocks implementation mutations. Output selection is a mandatory workflow step before the session can end or output production can begin. Output production is a deliberate approved phase and can temporarily use the tools required for that output.
 
 ## User Experience
 
@@ -36,8 +36,8 @@ The user interacts through normal chat, not a rigid wizard. The extension adds:
 - checkpoint review commands,
 - prompt injection while active,
 - read-only enforcement during the interview, and
-- checkpoint update/output-phase tools available to the assistant, and
-- Tab-cyclable suggested replies for each grill question.
+- checkpoint update/output-selection/output-phase tools available to the assistant, and
+- Tab-cyclable suggested replies for each grill question or output-selection choice.
 
 ### Commands for v1
 
@@ -47,7 +47,7 @@ The user interacts through normal chat, not a rigid wizard. The extension adds:
 - `/grill status`: show operational state.
 - `/grill intensity <gentle|standard|hard|adversarial>`: set intensity. Default: `standard`.
 - `/grill intent <auto|plan|learn|research|content|decide>`: set intent preset. Default: `auto`.
-- `/grill output <outputs>`: set one or more output preferences, e.g. `design-doc`, `prd`, `adr`, `issues`, `summary`, or comma-separated combinations. This preference is never production approval; the assistant still explicitly asks/confirm outputs later.
+- `/grill output <outputs>`: set one or more output preferences, e.g. `github-issues`, `design-doc`, `readme`, `adr`, `prd`, `summary`, or comma-separated combinations. This preference is never production approval; the assistant still explicitly asks/confirm outputs later.
 - `/grill research <off|ask|auto>`: set research behavior. Default: `auto`.
 
 ### Checkpoint
@@ -82,7 +82,7 @@ The checkpoint should not force every topic into a product-design template. For 
 
 Output generation is part of the normal `/grill` workflow, not only a separate export command.
 
-When the assistant believes shared understanding is sufficient, it should show a readiness gate containing:
+When the assistant believes shared understanding is sufficient, it must enter a hardcoded output-selection phase. This phase is mandatory before stopping, stopping without outputs, or producing outputs. The phase shows a readiness gate containing:
 
 1. why it thinks the session is ready,
 2. recommended output destination(s),
@@ -94,8 +94,22 @@ There is no default output mode for a grilling session. A missing output prefere
 
 Output generation should choose both:
 
-- **destination/format**: design doc, PRD, ADRs, GitHub issues, summary, etc.; one or more destinations may be chosen.
+- **destination/format**: explicit options include GitHub issues, design doc, README.md, ADR doc(s), PRD, implementation plan, research brief, summary/decision memo, tutorial/content outline, test plan/QA checklist, and changelog/release notes; one or more destinations may be chosen or customized.
 - **strategy**: implementation vertical slices, tutorial chapters, research investigations, content outline, ADR candidates, milestone experiments, etc.
+
+The output-selection phase should show the explicit destination catalog before asking the user to decide:
+
+- GitHub issues
+- Design doc
+- README.md
+- ADR doc
+- PRD
+- Implementation plan
+- Research brief
+- Summary / decision memo
+- Tutorial / content outline
+- Test plan / QA checklist
+- Changelog / release notes
 
 For example, GitHub issues might mean:
 
@@ -112,7 +126,7 @@ Before writing files or creating issues:
 - For file outputs: draft first, then write after approval.
 - For GitHub issues: preview issue titles/bodies/labels first, then create after approval.
 
-During output production, the assistant can enter an output phase that permits the required tools for the job.
+During output selection, the user may choose to continue grilling, review the checkpoint, stop without output, or approve one or more concrete outputs. During approved output production, the assistant can enter an output phase that permits the required tools for the job. Approved mutating actions, such as creating GitHub issues, should not be refused merely because they mutate state; if pi, a CLI, a platform, or the OS blocks the mutation for permission/authentication reasons, the assistant must ask the user for the needed permission, confirmation, credentials, or a revised plan instead of bypassing the gate.
 
 ## Technical Design
 
@@ -129,8 +143,11 @@ State fields:
 - `outputPreference`: user-provided output preference(s), if any. Empty means unset; it must not imply a default.
 - `researchMode`: `off | ask | auto`.
 - `checkpoint`: evolving Markdown shared-understanding document.
-- `outputPhase`: whether the user has approved output production and mutating tools may be used.
-- `currentQuestion`: the latest grill question that has Tab alternatives.
+- `phase`: `interview | output-selection | output`.
+- `outputPhase`: legacy/compatibility boolean for whether the user has approved output production and mutating tools may be used.
+- `outputSelection`: readiness rationale, recommended outputs, recommended strategy, and output-selection question while the mandatory output-selection phase is active.
+- `approvedOutputPlan`: approved concrete output plan while output phase is active.
+- `currentQuestion`: the latest grill question or output-selection question that has Tab alternatives.
 - `alternatives`: suggested replies exposed in the widget and Tab autocomplete.
 - `updatedAt`: last state update timestamp.
 - `lastChangeSummary`: latest checkpoint change summary.
@@ -149,8 +166,10 @@ When active, `before_agent_start` appends grill instructions to the system promp
 - inspect code/files instead of asking when research mode allows and the answer is discoverable,
 - do not implement during interview,
 - update checkpoint with `grill_update_checkpoint` before the next question whenever shared understanding changes,
-- when ready, present the readiness gate, explicitly ask for one or more outputs, and wait for user approval before output mutations,
-- after approval, call `grill_enter_output_phase` before using mutating tools.
+- when ready, call `grill_enter_output_selection_phase` to enter the mandatory hardcoded output-selection phase, explicitly list concrete output options (GitHub issues, design doc, README.md, ADR doc, PRD, etc.), ask for one or more outputs/continue/review/stop, and wait for the user's selection,
+- after output approval from that phase, call `grill_enter_output_phase` before using mutating tools,
+- during output phase, perform only approved mutations; if a permission/authentication/tool gate blocks an approved mutation, ask the user for the needed permission, confirmation, credentials, or plan change instead of refusing the approved output or bypassing the gate,
+- if the user continues grilling or stops without output, call `grill_finish_output_selection_phase`.
 
 ### Tools
 
@@ -185,6 +204,38 @@ Behavior:
 - displays a visible confirmation,
 - does not terminate the conversation.
 
+#### `grill_enter_output_selection_phase`
+
+Parameters:
+
+- `readinessRationale`: why shared understanding is sufficient to leave interview mode.
+- `recommendedOutputs`: recommended output destination(s)/format(s) from the explicit catalog, or none.
+- `recommendedStrategy`: recommended output strategy, distinct from destination.
+- `question`: the explicit output-selection question.
+- `alternatives`: 2-5 choices for Tab autocomplete.
+
+Behavior:
+
+- marks `phase = "output-selection"`,
+- stores the output-selection summary,
+- updates the current question/alternatives,
+- persists state, and
+- makes output selection visible in status/widget.
+
+#### `grill_finish_output_selection_phase`
+
+Parameters:
+
+- `outcome`: `continue-grilling` or `stop-without-output`.
+- `summary`: optional summary of the user's choice.
+
+Behavior:
+
+- resolves the mandatory output-selection phase without entering output production,
+- either returns to `interview` or stops Grill Me after a no-output choice,
+- persists state, and
+- clears the output-selection alternatives.
+
 #### `grill_enter_output_phase`
 
 Parameters:
@@ -193,9 +244,11 @@ Parameters:
 
 Behavior:
 
-- marks `outputPhase = true` for the approved 1..n output plan,
+- requires the mandatory `output-selection` phase first,
+- marks `phase = "output"` and `outputPhase = true` for the approved 1..n output plan,
 - persists state,
-- displays that output tools are enabled.
+- displays that output tools are enabled, and
+- instructs the assistant to ask the user for permission/authentication if an approved mutation is blocked by pi, a CLI, a platform, or the OS.
 
 #### `grill_finish_output_phase`
 
@@ -211,9 +264,9 @@ While `active && !outputPhase`:
 - block `edit` and `write`,
 - block bash commands that appear mutating,
 - allow read/search/inspection commands,
-- allow checkpoint/output-phase tools.
+- allow checkpoint/output-selection/output-phase tools.
 
-When `outputPhase` is true, the assistant may use tools required for the approved output step.
+When `outputPhase` is true, the assistant may use tools required for the approved output step. If an approved mutating action is blocked by permissions/authentication (for example `gh issue create` requiring login or confirmation), the assistant should ask the user for the required permission, credentials, or plan change rather than bypassing the gate or claiming success.
 
 ## MVP Scope
 
@@ -227,12 +280,13 @@ The first working version implements:
 - checkpoint review/editing,
 - Tab autocomplete alternatives for each question,
 - read-only enforcement during interview,
+- mandatory output-selection tools,
 - output-phase tool for approved output production,
 - status widget.
 
 ## Known Limitations / Future Work
 
 - Automatic checkpoint quality depends on the model following tool-use instructions.
-- Output strategies are prompt-driven in v1, not separate typed objects.
+- Output-selection is now a typed phase, but output strategies are still free-text rather than separate structured strategy objects.
 - GitHub issue creation is not wrapped by a dedicated tool yet; the assistant uses `gh` during approved output phase.
 - Later versions could add richer structured state, custom strategy templates, issue-preview tools, and automatic diffing of checkpoint changes.

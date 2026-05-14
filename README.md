@@ -1,6 +1,6 @@
 # Pi Grill Me
 
-A pi extension for Socratic planning sessions. It keeps a shared-understanding checkpoint, asks one focused question at a time, offers Tab-insertable answer alternatives, and blocks implementation mutations until an output phase is explicitly approved.
+A pi extension for Socratic planning sessions. It keeps a shared-understanding checkpoint, asks one focused question at a time, offers Tab-insertable answer alternatives, forces a mandatory output-selection phase at the end of the interview, and blocks implementation mutations until output production is explicitly approved.
 
 ## Install
 
@@ -24,7 +24,7 @@ pi -e git:github.com/majorgilles/pi-grill-me
 - `/grill status` — show current grill state.
 - `/grill intensity gentle|standard|hard|adversarial` — set Socratic intensity.
 - `/grill intent auto|plan|learn|research|content|decide` — set the intent preset.
-- `/grill output <outputs>` — set one or more preferred output formats, such as `design-doc`, `prd`, `adr`, `issues`, `summary`, or `design-doc,issues`. This is a preference only; Grill Me still explicitly asks/gets approval before producing outputs.
+- `/grill output <outputs>` — set one or more preferred output formats, such as `github-issues`, `design-doc`, `readme`, `adr`, `prd`, `summary`, or `design-doc,github-issues`. This is a preference only; Grill Me still explicitly asks/gets approval before producing outputs.
 - `/grill research off|ask|auto` — configure whether the assistant should inspect/research while grilling.
 
 ## Behavior
@@ -33,10 +33,49 @@ While active, the extension injects Grill Me instructions into the agent context
 
 - `grill_set_alternatives`
 - `grill_update_checkpoint`
+- `grill_enter_output_selection_phase`
+- `grill_finish_output_selection_phase`
 - `grill_enter_output_phase`
 - `grill_finish_output_phase`
 
-During interview mode it blocks `edit`, `write`, and bash commands that appear mutating. Grill Me does not assume a default output mode; at readiness it explicitly asks which output(s) to produce and supports one or many outputs, such as a design doc and uploaded GitHub issues. After the user approves a concrete output plan, the assistant can enter output phase and create only the approved artifacts.
+During interview mode it blocks `edit`, `write`, and bash commands that appear mutating. Grill Me does not assume a default output mode; when the interview is ready to end, the assistant must enter the hardcoded output-selection phase, ask which output(s) to produce, and support one or many outputs, such as a design doc and uploaded GitHub issues. Output production can only start after the user approves a concrete plan from that selection phase; choosing to continue grilling or stop without output is recorded separately.
+
+## Output selection options
+
+The mandatory output-selection phase explicitly names concrete artifact options, including:
+
+- GitHub issues
+- Design doc
+- README.md
+- ADR doc
+- PRD
+- Implementation plan
+- Research brief
+- Summary / decision memo
+- Tutorial / content outline
+- Test plan / QA checklist
+- Changelog / release notes
+
+The user can choose one, choose multiple, customize the set, continue grilling, review the checkpoint, or stop without producing output.
+
+## Permissions and mutating outputs
+
+Grill Me remains read-only until the user approves a concrete output plan and the assistant enters output phase. During output phase, approved mutating actions such as writing files or creating GitHub issues are allowed, but only within the approved plan. If pi, GitHub CLI, the OS, or another tool blocks an approved mutation because it needs permission, confirmation, authentication, or credentials, the assistant should stop and ask the user for that permission or a revised plan instead of bypassing the gate or pretending the action succeeded.
+
+## Acknowledgements
+
+Kudos to [Matt Pocock](https://github.com/mattpocock) for the idea that inspired this extension.
+
+## Testing
+
+This package currently has no npm scripts. Useful checks:
+
+```bash
+npm pack --dry-run
+tsc --noEmit --target ES2022 --module NodeNext --moduleResolution NodeNext --skipLibCheck index.ts
+```
+
+The TypeScript check requires pi peer dependencies to be resolvable in the local environment.
 
 See [DESIGN.md](./DESIGN.md) for the design notes.
 
