@@ -1,6 +1,6 @@
 # Pi Grill Me
 
-A pi extension for Socratic planning sessions. It keeps a shared-understanding checkpoint, asks one focused question at a time, offers Tab-insertable answer alternatives, and blocks implementation mutations until an output phase is explicitly approved.
+A pi extension for Socratic planning sessions. It keeps a shared-understanding checkpoint, asks one focused question at a time, offers Tab-insertable answer alternatives, forces a mandatory output-selection phase at the end of the interview, and blocks implementation mutations until output production is explicitly approved.
 
 ## Install
 
@@ -33,9 +33,22 @@ While active, the extension injects Grill Me instructions into the agent context
 
 - `grill_set_alternatives`
 - `grill_update_checkpoint`
+- `grill_enter_output_selection_phase`
+- `grill_finish_output_selection_phase`
 - `grill_enter_output_phase`
 - `grill_finish_output_phase`
 
-During interview mode it blocks `edit`, `write`, and bash commands that appear mutating. Grill Me does not assume a default output mode; at readiness it explicitly asks which output(s) to produce and supports one or many outputs, such as a design doc and uploaded GitHub issues. After the user approves a concrete output plan, the assistant can enter output phase and create only the approved artifacts.
+During interview mode it blocks `edit`, `write`, and bash commands that appear mutating. Grill Me does not assume a default output mode; when the interview is ready to end, the assistant must enter the hardcoded output-selection phase, ask which output(s) to produce, and support one or many outputs, such as a design doc and uploaded GitHub issues. Output production can only start after the user approves a concrete plan from that selection phase; choosing to continue grilling or stop without output is recorded separately.
+
+## Testing
+
+This package currently has no npm scripts. Useful checks:
+
+```bash
+npm pack --dry-run
+tsc --noEmit --target ES2022 --module NodeNext --moduleResolution NodeNext --skipLibCheck index.ts
+```
+
+The TypeScript check requires pi peer dependencies to be resolvable in the local environment.
 
 See [DESIGN.md](./DESIGN.md) for the design notes.
