@@ -40,6 +40,10 @@ While active, the extension injects Grill Me instructions into the agent context
 
 During interview mode it blocks `edit`, `write`, and bash commands that appear mutating. Grill Me does not assume a default output mode; when the interview is ready to end, the assistant must enter the hardcoded output-selection phase, ask which output(s) to produce, and support one or many outputs, such as a design doc and uploaded GitHub issues. Output production can only start after the user approves a concrete plan from that selection phase; choosing to continue grilling or stop without output is recorded separately.
 
+## Acknowledgements
+
+Kudos to [Matt Pocock](https://github.com/mattpocock) for the idea that inspired this extension.
+
 ## Testing
 
 This package currently has no npm scripts. Useful checks:
