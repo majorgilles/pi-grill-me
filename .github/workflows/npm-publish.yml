@@ -7,17 +7,19 @@ on:
   workflow_dispatch:
 
 permissions:
-  contents: read
+  contents: write
   id-token: write
 
 jobs:
   publish:
-    name: Publish unpublished npm package versions
+    name: Publish npm packages and GitHub releases
     runs-on: ubuntu-latest
 
     steps:
       - name: Checkout
         uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
 
       - name: Setup Node.js
         uses: actions/setup-node@v4
@@ -25,17 +27,13 @@ jobs:
           node-version: 22
           registry-url: https://registry.npmjs.org
 
-      - name: Publish unpublished pi extension packages
+      - name: Publish unpublished pi extension packages and releases
         env:
           NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
+          GH_TOKEN: ${{ github.token }}
         shell: bash
         run: |
           set -euo pipefail
-
-          if [ -z "${NODE_AUTH_TOKEN:-}" ]; then
-            echo "::error::Missing NPM_TOKEN secret. Add it in GitHub repository settings before publishing."
-            exit 1
-          fi
 
           mapfile -t manifests < <(
             find . -name package.json \
@@ -46,7 +44,7 @@ jobs:
               -print | sort
           )
 
-          published_any=0
+          updated_any=0
 
           for manifest in "${manifests[@]}"; do
             package_dir="$(dirname "$manifest")"
@@ -61,15 +59,46 @@ jobs:
             fi
 
             if npm view "${name}@${version}" version >/dev/null 2>&1; then
-              echo "Skipping ${name}@${version}; already published."
+              echo "Skipping npm publish for ${name}@${version}; already published."
+            else
+              if [ -z "${NODE_AUTH_TOKEN:-}" ]; then
+                echo "::error::Missing NPM_TOKEN secret. Add it in GitHub repository settings before publishing ${name}@${version}."
+                exit 1
+              fi
+
+              echo "Publishing ${name}@${version} from ${package_dir}"
+              (cd "$package_dir" && npm publish --access public --provenance)
+              updated_any=1
+            fi
+
+            tag="v${version}"
+            title="${name}@${version}"
+            notes="Published \`${name}@${version}\` to npm."
+
+            if gh release view "$tag" >/dev/null 2>&1; then
+              echo "Skipping GitHub release ${tag}; already exists."
               continue
             fi
 
-            echo "Publishing ${name}@${version} from ${package_dir}"
-            (cd "$package_dir" && npm publish --access public --provenance)
-            published_any=1
+            if git ls-remote --exit-code --tags origin "refs/tags/${tag}" >/dev/null 2>&1; then
+              echo "Creating GitHub release ${tag} for existing tag."
+              gh release create "$tag" \
+                --title "$title" \
+                --notes "$notes" \
+                --generate-notes \
+                --verify-tag
+            else
+              echo "Creating GitHub release ${tag} for ${name}@${version}."
+              gh release create "$tag" \
+                --title "$title" \
+                --notes "$notes" \
+                --generate-notes \
+                --target "$GITHUB_SHA"
+            fi
+
+            updated_any=1
           done
 
-          if [ "$published_any" -eq 0 ]; then
-            echo "No unpublished pi extension package versions found."
+          if [ "$updated_any" -eq 0 ]; then
+            echo "No unpublished pi extension package versions or missing GitHub releases found."
           fi
