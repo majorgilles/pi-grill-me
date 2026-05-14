@@ -1,5 +1,6 @@
 import type { ExtensionAPI, ExtensionContext } from "@earendil-works/pi-coding-agent";
-import { Text, type AutocompleteItem, type AutocompleteProvider } from "@earendil-works/pi-tui";
+import { DynamicBorder, getMarkdownTheme } from "@earendil-works/pi-coding-agent";
+import { Markdown, matchesKey, Text, truncateToWidth, type AutocompleteItem, type AutocompleteProvider } from "@earendil-works/pi-tui";
 import { Type } from "typebox";
 
 type Intent = "auto" | "plan" | "learn" | "research" | "content" | "decide";
@@ -312,18 +313,83 @@ export default function grillMeExtension(pi: ExtensionAPI): void {
 		pi.sendUserMessage(`Start a Grill Me session for this topic:\n\n${topic}\n\nBegin by updating the checkpoint if needed, then call grill_set_alternatives with 2-5 concrete answer choices and ask the first focused Socratic question. Mention that Tab cycles/inserts the suggested replies.`);
 	}
 
+	async function showCheckpointOverlay(ctx: ExtensionContext): Promise<"edit" | undefined> {
+		if (!ctx.hasUI) {
+			pi.sendMessage({ customType: "grill-me-checkpoint", content: state.checkpoint, display: true });
+			return undefined;
+		}
+
+		return await ctx.ui.custom<"edit" | undefined>(
+			(tui, theme, _keybindings, done) => {
+				const border = new DynamicBorder((s: string) => theme.fg("accent", s));
+				const markdown = new Markdown(state.checkpoint, 1, 0, getMarkdownTheme());
+				let scrollOffset = 0;
+				let cachedWidth = 0;
+				let cachedBody: string[] = [];
+				const maxBodyLines = 16;
+
+				function bodyLines(width: number): string[] {
+					if (cachedWidth !== width || cachedBody.length === 0) {
+						cachedWidth = width;
+						cachedBody = markdown.render(width);
+					}
+					return cachedBody;
+				}
+
+				function maxOffset(): number {
+					return Math.max(0, cachedBody.length - maxBodyLines);
+				}
+
+				function move(delta: number): void {
+					scrollOffset = Math.max(0, Math.min(maxOffset(), scrollOffset + delta));
+					tui.requestRender();
+				}
+
+				return {
+					render(width: number) {
+						const body = bodyLines(width);
+						scrollOffset = Math.min(scrollOffset, maxOffset());
+						const visible = body.slice(scrollOffset, scrollOffset + maxBodyLines);
+						const range = body.length > maxBodyLines ? `lines ${scrollOffset + 1}-${Math.min(scrollOffset + maxBodyLines, body.length)} of ${body.length}` : "full checkpoint";
+						return [
+							...border.render(width),
+							truncateToWidth(theme.fg("accent", theme.bold("🔥 Grill Me Checkpoint")), width),
+							truncateToWidth(theme.fg("dim", `${range} • ↑↓/PgUp/PgDn scroll • e edit • Enter/Esc close`), width),
+							...visible.map((line) => truncateToWidth(line, width, "")),
+							...border.render(width),
+						];
+					},
+					invalidate() {
+						border.invalidate();
+						markdown.invalidate();
+						cachedWidth = 0;
+						cachedBody = [];
+					},
+					handleInput(data: string) {
+						if (matchesKey(data, "escape") || matchesKey(data, "enter")) done(undefined);
+						else if (matchesKey(data, "e")) done("edit");
+						else if (matchesKey(data, "up")) move(-1);
+						else if (matchesKey(data, "down")) move(1);
+						else if (matchesKey(data, "pageUp")) move(-maxBodyLines);
+						else if (matchesKey(data, "pageDown")) move(maxBodyLines);
+					},
+				};
+			},
+			{
+				overlay: true,
+				overlayOptions: { anchor: "center", width: "80%", minWidth: 50, maxHeight: "80%", margin: 2 },
+			},
+		);
+	}
+
 	async function showCheckpoint(ctx: ExtensionContext, mode?: string): Promise<void> {
 		if (!state.checkpoint.trim()) {
 			ctx.ui.notify("No grill checkpoint yet.", "warning");
 			return;
 		}
 
-		let selected = mode;
-		if (!selected && ctx.hasUI) {
-			selected = await ctx.ui.select("Grill checkpoint", ["Show in chat", "Edit checkpoint"]);
-		}
-
-		if (selected?.toLowerCase().includes("edit")) {
+		const selected = mode?.trim().toLowerCase() || "overlay";
+		if (selected.includes("edit")) {
 			const edited = await ctx.ui.editor("Edit Grill Me checkpoint", state.checkpoint);
 			if (edited !== undefined) {
 				state.checkpoint = edited.trim() || state.checkpoint;
@@ -335,8 +401,23 @@ export default function grillMeExtension(pi: ExtensionAPI): void {
 			return;
 		}
 
-		pi.sendMessage({ customType: "grill-me-checkpoint", content: state.checkpoint, display: true });
+		if (selected.includes("chat")) {
+			pi.sendMessage({ customType: "grill-me-checkpoint", content: state.checkpoint, display: true });
+			return;
+		}
+
+		const action = await showCheckpointOverlay(ctx);
+		if (action === "edit") {
+			await showCheckpoint(ctx, "edit");
+		}
 	}
+
+	pi.registerCommand("checkpoint", {
+		description: "Show the current Grill Me checkpoint in an overlay",
+		handler: async (args, ctx) => {
+			await showCheckpoint(ctx, args.trim());
+		},
+	});
 
 	pi.registerCommand("grill", {
 		description: "Start or control a Socratic Grill Me planning session",
@@ -348,7 +429,7 @@ export default function grillMeExtension(pi: ExtensionAPI): void {
 			if (command === "help") {
 				pi.sendMessage({
 					customType: "grill-me-help",
-					content: `# Grill Me commands\n\n- /grill <topic>\n- /grill stop\n- /grill checkpoint [edit]\n- /grill status\n- /grill intensity gentle|standard|hard|adversarial\n- /grill intent auto|plan|learn|research|content|decide\n- /grill output <type or list>\n- /grill research off|ask|auto`,
+					content: `# Grill Me commands\n\n- /grill <topic>\n- /grill stop\n- /checkpoint [edit|chat]\n- /grill checkpoint [edit|chat]\n- /grill status\n- /grill intensity gentle|standard|hard|adversarial\n- /grill intent auto|plan|learn|research|content|decide\n- /grill output <type or list>\n- /grill research off|ask|auto`,
 					display: true,
 				});
 				return;
