@@ -1,0 +1,75 @@
+name: Publish pi extension packages
+
+on:
+  push:
+    branches:
+      - main
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  id-token: write
+
+jobs:
+  publish:
+    name: Publish unpublished npm package versions
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          registry-url: https://registry.npmjs.org
+
+      - name: Publish unpublished pi extension packages
+        env:
+          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          if [ -z "${NODE_AUTH_TOKEN:-}" ]; then
+            echo "::error::Missing NPM_TOKEN secret. Add it in GitHub repository settings before publishing."
+            exit 1
+          fi
+
+          mapfile -t manifests < <(
+            find . -name package.json \
+              -not -path "*/.git/*" \
+              -not -path "*/node_modules/*" \
+              -not -path "*/dist/*" \
+              -not -path "*/build/*" \
+              -print | sort
+          )
+
+          published_any=0
+
+          for manifest in "${manifests[@]}"; do
+            package_dir="$(dirname "$manifest")"
+            name="$(node -p "const p=require(process.argv[1]); p.name || ''" "$manifest")"
+            version="$(node -p "const p=require(process.argv[1]); p.version || ''" "$manifest")"
+            private_pkg="$(node -p "const p=require(process.argv[1]); String(p.private === true)" "$manifest")"
+            has_pi_extension="$(node -p "const p=require(process.argv[1]); String(Array.isArray(p.pi?.extensions) && p.pi.extensions.length > 0)" "$manifest")"
+
+            if [ -z "$name" ] || [ -z "$version" ] || [ "$private_pkg" = "true" ] || [ "$has_pi_extension" != "true" ]; then
+              echo "Skipping $manifest (not a public pi extension package)."
+              continue
+            fi
+
+            if npm view "${name}@${version}" version >/dev/null 2>&1; then
+              echo "Skipping ${name}@${version}; already published."
+              continue
+            fi
+
+            echo "Publishing ${name}@${version} from ${package_dir}"
+            (cd "$package_dir" && npm publish --access public --provenance)
+            published_any=1
+          done
+
+          if [ "$published_any" -eq 0 ]; then
+            echo "No unpublished pi extension package versions found."
+          fi
