@@ -47,7 +47,7 @@ The user interacts through normal chat, not a rigid wizard. The extension adds:
 - `/grill status`: show operational state.
 - `/grill intensity <gentle|standard|hard|adversarial>`: set intensity. Default: `standard`.
 - `/grill intent <auto|plan|learn|research|content|decide>`: set intent preset. Default: `auto`.
-- `/grill output <type>`: set output preference, e.g. `design-doc`, `prd`, `adr`, `issues`, `summary`, or comma-separated combinations.
+- `/grill output <outputs>`: set one or more output preferences, e.g. `design-doc`, `prd`, `adr`, `issues`, `summary`, or comma-separated combinations. This preference is never production approval; the assistant still explicitly asks/confirm outputs later.
 - `/grill research <off|ask|auto>`: set research behavior. Default: `auto`.
 
 ### Checkpoint
@@ -86,12 +86,15 @@ When the assistant believes shared understanding is sufficient, it should show a
 
 1. why it thinks the session is ready,
 2. recommended output destination(s),
-3. recommended output strategy, and
-4. choices: continue grilling, review checkpoint, or produce outputs.
+3. recommended output strategy,
+4. an explicit question asking which output(s) to produce, and
+5. choices: continue grilling, review checkpoint, or produce one or more outputs.
+
+There is no default output mode for a grilling session. A missing output preference means no output has been chosen yet. Even when `/grill output` was used, the assistant must explicitly ask/confirm the final output set before output production. The user may choose 1..n outputs, such as both a design doc and uploaded GitHub issues.
 
 Output generation should choose both:
 
-- **destination/format**: design doc, PRD, ADRs, GitHub issues, summary, etc.
+- **destination/format**: design doc, PRD, ADRs, GitHub issues, summary, etc.; one or more destinations may be chosen.
 - **strategy**: implementation vertical slices, tutorial chapters, research investigations, content outline, ADR candidates, milestone experiments, etc.
 
 For example, GitHub issues might mean:
@@ -123,7 +126,7 @@ State fields:
 - `topic`: current topic.
 - `intent`: `auto | plan | learn | research | content | decide`.
 - `intensity`: `gentle | standard | hard | adversarial`.
-- `outputPreference`: user-provided or inferred output preference.
+- `outputPreference`: user-provided output preference(s), if any. Empty means unset; it must not imply a default.
 - `researchMode`: `off | ask | auto`.
 - `checkpoint`: evolving Markdown shared-understanding document.
 - `outputPhase`: whether the user has approved output production and mutating tools may be used.
@@ -146,7 +149,7 @@ When active, `before_agent_start` appends grill instructions to the system promp
 - inspect code/files instead of asking when research mode allows and the answer is discoverable,
 - do not implement during interview,
 - update checkpoint with `grill_update_checkpoint` before the next question whenever shared understanding changes,
-- when ready, present the readiness gate and wait for user approval before output mutations,
+- when ready, present the readiness gate, explicitly ask for one or more outputs, and wait for user approval before output mutations,
 - after approval, call `grill_enter_output_phase` before using mutating tools.
 
 ### Tools
@@ -190,7 +193,7 @@ Parameters:
 
 Behavior:
 
-- marks `outputPhase = true`,
+- marks `outputPhase = true` for the approved 1..n output plan,
 - persists state,
 - displays that output tools are enabled.
 
