@@ -19,7 +19,8 @@ pi -e git:github.com/majorgilles/pi-grill-me
 - `/grill <topic>` — start a grill session.
 - `/grill` — infer the topic from the current conversation and ask for confirmation/editing.
 - `/grill stop` — stop grill mode.
-- `/grill checkpoint [edit]` — show or edit the current checkpoint.
+- `/checkpoint [edit|chat]` — show the current checkpoint in an overlay by default; use `edit` to edit or `chat` to print it.
+- `/grill checkpoint [edit|chat]` — same checkpoint controls from the `/grill` command.
 - `/grill status` — show current grill state.
 - `/grill intensity gentle|standard|hard|adversarial` — set Socratic intensity.
 - `/grill intent auto|plan|learn|research|content|decide` — set the intent preset.
