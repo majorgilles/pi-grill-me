@@ -62,6 +62,8 @@ The user can choose one, choose multiple, customize the set, continue grilling, 
 
 Grill Me remains read-only until the user approves a concrete output plan and the assistant enters output phase. During output phase, approved mutating actions such as writing files or creating GitHub issues are allowed, but only within the approved plan. If pi, GitHub CLI, the OS, or another tool blocks an approved mutation because it needs permission, confirmation, authentication, or credentials, the assistant should stop and ask the user for that permission or a revised plan instead of bypassing the gate or pretending the action succeeded.
 
+For approved GitHub issue output, a missing git repository or missing remote is treated as a permission gate, not a refusal. The assistant should ask direct permission for a concrete continuation such as initializing the folder, creating/publishing `OWNER/REPO` with GitHub CLI, adding the remote, and then creating the previewed issues; the user can approve that action or provide another repo/remote.
+
 ## Acknowledgements
 
 Kudos to [Matt Pocock](https://github.com/mattpocock) for the idea that inspired this extension.
