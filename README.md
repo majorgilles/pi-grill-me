@@ -1,6 +1,6 @@
 # Pi Grill Me
 
-A pi extension for Socratic planning sessions. It keeps a shared-understanding checkpoint, asks one focused question at a time, offers Tab-insertable answer alternatives, forces a mandatory output-selection phase at the end of the interview, and blocks implementation mutations until output production is explicitly approved.
+A pi extension for Socratic planning sessions. It keeps a shared-understanding checkpoint, asks one focused question at a time, offers Tab-cyclable answer alternatives, forces a mandatory output-selection phase at the end of the interview, and blocks implementation mutations until output production is explicitly approved.
 
 ## Install
 
@@ -39,6 +39,10 @@ While active, the extension injects Grill Me instructions into the agent context
 - `grill_finish_output_phase`
 
 During interview mode it blocks `edit`, `write`, and bash commands that appear mutating. Grill Me does not assume a default output mode; when the interview is ready to end, the assistant must enter the hardcoded output-selection phase, ask which output(s) to produce, and support one or many outputs, such as a design doc and uploaded GitHub issues. Output production can only start after the user approves a concrete plan from that selection phase; choosing to continue grilling or stop without output is recorded separately.
+
+## Tab reply selection
+
+When Grill Me alternatives are active, `Tab` fills the editor with a suggested reply and repeated `Tab` cycles through the available replies. `Shift+Tab` cycles backward. Press `Enter` to send the selected reply, or edit the inserted text before pressing `Enter` to send a custom answer. If you type a short filter first, `Tab` selects the first matching alternative; free-form text is left alone.
 
 ## Output selection options
 

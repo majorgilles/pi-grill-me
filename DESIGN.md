@@ -14,7 +14,7 @@ The extension should be useful both for:
 1. **Shared understanding first**: the goal is not to immediately implement, but to converge on a clear, useful understanding of the user's intent.
 2. **Adaptive interview, hardcoded ending**: avoid fixed product/UX/architecture interview phases. Use adaptive dimensions such as objective, constraints, outcome mode, risks, tradeoffs, unknowns, and next steps. The final output-selection phase is the one mandatory hardcoded phase before stopping or producing outputs.
 3. **Mostly one question at a time**: default pacing asks one focused question per assistant turn, with small grouped questions allowed only when inseparable.
-4. **Alternatives included by default**: each grill question should include 2-5 concrete answer alternatives, including the assistant's recommended answer, and expose them through Tab autocomplete.
+4. **Alternatives included by default**: each grill question should include 2-5 concrete answer alternatives, including the assistant's recommended answer, and expose them through Tab reply selection.
 5. **Stateful memory**: maintain a single evolving Markdown checkpoint representing current shared understanding.
 6. **Automatic checkpointing**: whenever shared understanding changes meaningfully, the assistant must update the checkpoint before asking the next question.
 7. **Read-only during grilling**: while interviewing/planning, the extension blocks implementation mutations. Output selection is a mandatory workflow step before the session can end or output production can begin. Output production is a deliberate approved phase and can temporarily use the tools required for that output.
@@ -150,7 +150,7 @@ State fields:
 - `outputSelection`: readiness rationale, recommended outputs, recommended strategy, and output-selection question while the mandatory output-selection phase is active.
 - `approvedOutputPlan`: approved concrete output plan while output phase is active.
 - `currentQuestion`: the latest grill question or output-selection question that has Tab alternatives.
-- `alternatives`: suggested replies exposed in the widget and Tab autocomplete.
+- `alternatives`: suggested replies exposed in the widget and Tab reply-selection UX.
 - `updatedAt`: last state update timestamp.
 - `lastChangeSummary`: latest checkpoint change summary.
 
@@ -163,7 +163,7 @@ When active, `before_agent_start` appends grill instructions to the system promp
 - apply Socratic method,
 - ask mostly one question at a time,
 - include 2-5 concrete answer alternatives and a recommended answer by default,
-- call `grill_set_alternatives` before each question so Tab autocomplete can cycle/insert those alternatives,
+- call `grill_set_alternatives` before each question so Tab can fill/cycle those alternatives and Enter can send the selected or edited reply,
 - adapt dimensions to topic and intent,
 - inspect code/files instead of asking when research mode allows and the answer is discoverable,
 - do not implement during interview,
@@ -182,7 +182,7 @@ Parameters:
 
 - `question`: the question these alternatives answer.
 - `alternatives`: 2-5 objects containing:
-  - `value`: exact reply inserted into the user's editor via Tab autocomplete.
+  - `value`: exact reply inserted into the user's editor via Tab reply selection.
   - `label`: short visible label.
   - `description`: optional explanation/recommendation note.
 
@@ -190,7 +190,7 @@ Behavior:
 
 - stores the current question and alternatives in state,
 - shows them in the status widget below the editor,
-- exposes them through the active autocomplete provider so pressing Tab cycles/inserts them, and
+- exposes them through the active reply-selection editor so pressing Tab fills/cycles them, and
 - does not prevent the user from typing a custom answer.
 
 #### `grill_update_checkpoint`
@@ -215,7 +215,7 @@ Parameters:
 - `recommendedOutputs`: recommended output destination(s)/format(s) from the explicit catalog, or none.
 - `recommendedStrategy`: recommended output strategy, distinct from destination.
 - `question`: the explicit output-selection question.
-- `alternatives`: 2-5 choices for Tab autocomplete.
+- `alternatives`: 2-5 choices for Tab reply selection.
 
 Behavior:
 
@@ -281,7 +281,7 @@ The first working version implements:
 - persistent Markdown checkpoint,
 - `grill_update_checkpoint`,
 - checkpoint review/editing,
-- Tab autocomplete alternatives for each question,
+- Tab reply-selection alternatives for each question,
 - read-only enforcement during interview,
 - mandatory output-selection tools,
 - output-phase tool for approved output production,
