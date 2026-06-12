@@ -18,7 +18,7 @@ pi -e git:github.com/majorgilles/pi-grill-me
 
 - `/grill <topic>` — start a grill session.
 - `/grill` — infer the topic from the current conversation and ask for confirmation/editing.
-- `/grill stop` — stop grill mode.
+- `/grill stop` or `/grill off` — stop grill mode, clear Grill Me state/checkpoint/alternatives, and remove Grill Me tools from the active tool list so they stop consuming prompt tokens.
 - `/checkpoint [edit|chat]` — show the current checkpoint in an overlay by default; use `edit` to edit or `chat` to print it.
 - `/grill checkpoint [edit|chat]` — same checkpoint controls from the `/grill` command.
 - `/grill status` — show current grill state.
@@ -28,7 +28,7 @@ pi -e git:github.com/majorgilles/pi-grill-me
 
 ## Behavior
 
-While active, the extension injects Grill Me instructions into the agent context and exposes these assistant tools:
+While active, the extension injects Grill Me instructions into the agent context and enables these assistant tools:
 
 - `grill_set_alternatives`
 - `grill_update_checkpoint`
@@ -37,11 +37,11 @@ While active, the extension injects Grill Me instructions into the agent context
 - `grill_enter_output_phase`
 - `grill_finish_output_phase`
 
-During interview mode it blocks `edit`, `write`, and bash commands that appear mutating. Grill Me uses one thorough default grilling style. The assistant is instructed to maintain a coverage checklist and decision-branch ledger in the checkpoint, ask enough follow-up questions to resolve or intentionally defer major branches, and avoid premature readiness. Grill Me does not assume a default output mode; when the interview is ready to end, the assistant must enter the hardcoded output-selection phase, ask which output(s) to produce, and support one or many outputs, such as a design doc and uploaded GitHub issues. Output production can only start after the user approves a concrete plan from that selection phase; choosing to continue grilling or stop without output is recorded separately.
+During interview mode it blocks `edit`, `write`, and bash commands that appear mutating. `/grill off` disables Grill Me tools and clears session-specific Grill Me state so inactive sessions do not keep carrying Grill Me prompt/tool tokens. Grill Me uses one thorough default grilling style. The assistant is instructed to maintain a coverage checklist and decision-branch ledger in the checkpoint, ask enough follow-up questions to resolve or intentionally defer major branches, and avoid premature readiness. Grill Me does not assume a default output mode; when the interview is ready to end, the assistant must enter the hardcoded output-selection phase, ask which output(s) to produce, and support one or many outputs, such as a design doc and uploaded GitHub issues. Output production can only start after the user approves a concrete plan from that selection phase; choosing to continue grilling or stop without output is recorded separately.
 
 ## Tab reply selection
 
-When Grill Me alternatives are active, `Tab` fills the editor with a suggested reply and repeated `Tab` cycles through the available replies. `Shift+Tab` cycles backward. Press `Enter` to send the selected reply, or edit the inserted text before pressing `Enter` to send a custom answer. If you type a short filter first, `Tab` selects the first matching alternative; free-form text is left alone.
+When Grill Me alternatives are active, `Tab` fills the editor with a suggested reply and repeated `Tab` cycles through the available replies. `Shift+Tab` cycles backward. Press `Enter` to send the selected reply, or edit the inserted text before pressing `Enter` to send a custom answer. If you type a short filter first, `Tab` selects the first matching alternative; free-form text is left alone. The widget and tool feedback now include the current question plus contextual descriptions for each option so you can compare tradeoffs before choosing.
 
 ## Output selection options
 

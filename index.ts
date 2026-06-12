@@ -47,6 +47,15 @@ interface GrillState {
 
 const STATE_ENTRY_TYPE = "grill-me-state";
 const LEGACY_DEFAULT_OUTPUT_PREFERENCE = "design-doc by default; adapt/recommend near readiness";
+const GRILL_TOOL_NAMES = [
+	"grill_update_checkpoint",
+	"grill_set_alternatives",
+	"grill_enter_output_selection_phase",
+	"grill_finish_output_selection_phase",
+	"grill_enter_output_phase",
+	"grill_finish_output_phase",
+] as const;
+const GRILL_TOOL_NAME_SET = new Set<string>(GRILL_TOOL_NAMES);
 
 const DEFAULT_STATE: GrillState = {
 	active: false,
@@ -455,6 +464,22 @@ function isProbablyReadOnlyBash(command: string): boolean {
 export default function grillMeExtension(pi: ExtensionAPI): void {
 	let state: GrillState = cloneState(DEFAULT_STATE);
 
+	function setGrillToolsEnabled(enabled: boolean): void {
+		const activeNames = pi.getActiveTools().map((tool) => tool.name);
+		const nextNames = enabled
+			? Array.from(new Set([...activeNames, ...GRILL_TOOL_NAMES]))
+			: activeNames.filter((name) => !GRILL_TOOL_NAME_SET.has(name));
+		pi.setActiveTools(nextNames);
+	}
+
+	function resetGrillState(changeSummary: string): void {
+		state = {
+			...cloneState(DEFAULT_STATE),
+			lastChangeSummary: changeSummary,
+			updatedAt: Date.now(),
+		};
+	}
+
 	function persist(): void {
 		state.updatedAt = Date.now();
 		pi.appendEntry(STATE_ENTRY_TYPE, cloneState(state));
@@ -478,6 +503,7 @@ export default function grillMeExtension(pi: ExtensionAPI): void {
 			ctx.ui.theme.fg("dim", `Phase: ${phaseLabel(state)}`),
 		];
 		if (state.alternatives.length > 0) {
+			if (state.currentQuestion) lines.push(ctx.ui.theme.fg("muted", `Question: ${state.currentQuestion}`));
 			lines.push(ctx.ui.theme.fg("accent", "Tab: fill/cycle replies • Shift+Tab previous • Enter sends"));
 			for (const alternative of state.alternatives) {
 				const description = alternative.description ? ` — ${alternative.description}` : "";
@@ -488,6 +514,7 @@ export default function grillMeExtension(pi: ExtensionAPI): void {
 	}
 
 	function startSession(topic: string, ctx: ExtensionContext, partial: Partial<GrillState> = {}): void {
+		setGrillToolsEnabled(true);
 		state = {
 			...cloneState(DEFAULT_STATE),
 			...partial,
@@ -622,24 +649,18 @@ export default function grillMeExtension(pi: ExtensionAPI): void {
 			if (command === "help") {
 				pi.sendMessage({
 					customType: "grill-me-help",
-					content: `# Grill Me commands\n\n- /grill <topic>\n- /grill stop\n- /checkpoint [edit|chat]\n- /grill checkpoint [edit|chat]\n- /grill status\n- /grill intent auto|plan|learn|research|content|decide\n- /grill output <one or more outputs> (preference only; approval still required)\n- /grill research off|ask|auto\n\nGrill Me uses one thorough default Socratic style. The assistant must use the hardcoded output-selection phase before ending the interview, producing outputs, or stopping without outputs.`,
+					content: `# Grill Me commands\n\n- /grill <topic>\n- /grill stop or /grill off\n- /checkpoint [edit|chat]\n- /grill checkpoint [edit|chat]\n- /grill status\n- /grill intent auto|plan|learn|research|content|decide\n- /grill output <one or more outputs> (preference only; approval still required)\n- /grill research off|ask|auto\n\n/grill off clears Grill Me state, alternatives, checkpoint context, and removes Grill Me tools from the active tool list so they stop consuming prompt tokens. Grill Me uses one thorough default Socratic style. The assistant must use the hardcoded output-selection phase before ending the interview, producing outputs, or stopping without outputs.`,
 					display: true,
 				});
 				return;
 			}
 
-			if (command === "stop") {
-				state.active = false;
-				state.phase = "interview";
-				state.outputPhase = false;
-				state.outputSelection = undefined;
-				state.approvedOutputPlan = undefined;
-				state.currentQuestion = undefined;
-				state.alternatives = [];
-				state.lastChangeSummary = "Stopped grill session";
+			if (command === "stop" || command === "off") {
+				setGrillToolsEnabled(false);
+				resetGrillState("Stopped grill session and cleared Grill Me context");
 				persist();
 				updateUi(ctx);
-				ctx.ui.notify("Grill mode stopped.", "info");
+				ctx.ui.notify("Grill mode stopped. Grill Me state, alternatives, checkpoint context, and tools were cleared.", "info");
 				return;
 			}
 
@@ -764,8 +785,8 @@ export default function grillMeExtension(pi: ExtensionAPI): void {
 		description: "Set the visible Grill Me answer alternatives offered to the user via Tab autocomplete for the next question or readiness choice.",
 		promptSnippet: "Present answer alternatives through the Grill Me Tab autocomplete UX",
 		promptGuidelines: [
-			"Before asking each grill question, call grill_set_alternatives with 2-5 concise, concrete alternatives the user can accept or edit with Tab autocomplete.",
-			"Include one recommended alternative and make it clear in the label or description.",
+			"Before asking each grill question, call grill_set_alternatives with 2-5 concrete alternatives the user can accept or edit with Tab autocomplete.",
+			"For each grill_set_alternatives option, put the recommendation marker and short choice name in the label, and use the description to explain when to choose it, key tradeoffs, consequences, or what assumption it represents.",
 			"Use alternatives that are useful defaults, not exhaustive menus; the user can still type a custom answer.",
 		],
 		parameters: Type.Object({
@@ -773,10 +794,10 @@ export default function grillMeExtension(pi: ExtensionAPI): void {
 			alternatives: Type.Array(
 				Type.Object({
 					value: Type.String({ description: "The exact reply inserted into the user's editor when selected." }),
-					label: Type.String({ description: "Short visible label for the alternative." }),
-					description: Type.Optional(Type.String({ description: "Brief explanation or recommendation note." })),
+					label: Type.String({ description: "Short visible label for the alternative. Mark the recommended/default option in this label." }),
+					description: Type.Optional(Type.String({ description: "Context for choosing this option: when it fits, key tradeoffs/consequences, or assumptions it implies." })),
 				}),
-				{ description: "2-5 suggested replies. Include a recommended/default option." },
+				{ description: "2-5 suggested replies. Include a recommended/default option and enough context to compare choices." },
 			),
 		}),
 		async execute(_toolCallId, params, _signal, _onUpdate, ctx) {
@@ -791,8 +812,11 @@ export default function grillMeExtension(pi: ExtensionAPI): void {
 			state.lastChangeSummary = `Set ${state.alternatives.length} Tab alternatives`;
 			persist();
 			if (ctx) updateUi(ctx);
+			const alternativesMarkdown = state.alternatives
+				.map((a) => `- ${a.label}: ${a.description ? `${a.description} ` : ""}Inserts: ${a.value}`)
+				.join("\n");
 			return {
-				content: [{ type: "text", text: `Tab alternatives updated: ${state.alternatives.map((a) => a.label).join(", ")}` }],
+				content: [{ type: "text", text: `Tab alternatives updated for: ${state.currentQuestion}\n${alternativesMarkdown}` }],
 				details: { question: state.currentQuestion, alternatives: state.alternatives },
 			};
 		},
@@ -1051,7 +1075,7 @@ export default function grillMeExtension(pi: ExtensionAPI): void {
 			? `\n\nActive output selection:\n- Rationale: ${state.outputSelection.readinessRationale}\n- Recommended outputs: ${state.outputSelection.recommendedOutputs}\n- Recommended strategy: ${state.outputSelection.recommendedStrategy}\n- Question: ${state.outputSelection.question}`
 			: "";
 
-		const prompt = `\n\n[GRILL ME EXTENSION ACTIVE]\nTopic:\n${state.topic}\n\nConfiguration:\n- Intent preset: ${state.intent}\n- Grilling style: thorough default\n- Research mode: ${state.researchMode}\n- Output preference: ${describeOutputPreference(state)}\n- Phase: ${phase}\n- Output phase: ${state.outputPhase ? "yes" : "no"}${outputSelectionSummary}\n\nCurrent checkpoint:\n${state.checkpoint || "(No checkpoint yet.)"}\n\nCurrent Tab alternatives:\n${state.alternatives.length ? state.alternatives.map((a) => `- ${a.label}: ${a.value}${a.description ? ` (${a.description})` : ""}`).join("\n") : "(None set.)"}\n\nBehavior:\n- Apply the Socratic method to reach shared understanding of the topic.\n- Avoid hardcoded interview phases. Adapt the dimensions you explore to the subject and to the user's expertise.\n- The output-selection phase is the one hardcoded terminal phase: it is mandatory before stopping the Grill Me work, stopping without outputs, or producing outputs.\n- Treat desired outcome mode as important: learning, building, researching, content/tutorial creation, decision review, etc.\n- Do not set or assume a default output mode for the session. A missing output preference means no output has been chosen yet, not design-doc or any other default.\n- Treat /grill output as a preference only, not production approval. Always explicitly ask/confirm which output(s) to produce before output production.\n- Support 1..n outputs in one approved output plan; for example, a design doc AND uploaded GitHub issues.\n- The output-selection phase must explicitly mention concrete output destinations by name. Use this catalog and allow custom combinations:\n${outputDestinationOptionsMarkdown()}\n- Ask mostly one focused question at a time. Small grouped questions are allowed only when inseparable.\n- Ask more than the minimum needed for a shallow summary: keep drilling until the meaningful dependency branches are resolved, contradicted, or intentionally deferred.\n- Every grill question must present 2-5 concrete answer alternatives. Before asking the question, call grill_set_alternatives so the user can fill/cycle those alternatives with Tab and send the selected or edited reply with Enter. Also show the same alternatives briefly in chat.\n- Include your recommended answer by default with each grill question and mark it as recommended.\n- ${thoroughGrillingGuidance}\n- ${researchGuidance[state.researchMode]}\n- ${outputPhaseGuidance}\n\nCheckpoint rule:\n- The checkpoint is the source of durable shared understanding.\n- Whenever the user's answer meaningfully changes shared understanding, call grill_update_checkpoint with a full replacement Markdown checkpoint and a concise changeSummary BEFORE asking the next grill question.\n- The checkpoint should be adaptive Markdown. Add/remove sections as appropriate for the topic.\n- Keep a coverage checklist and decision-branch ledger in the checkpoint when useful; update branch status as resolved, open, contradicted, or intentionally deferred.\n- If there is no meaningful change, you may ask the next question without updating.\n\nReadiness/output rule:\n- When you think shared understanding is good enough, do not merely present a prompt-only readiness gate. First verify that the major coverage branches are resolved or explicitly deferred, then call grill_enter_output_selection_phase with the rationale, recommended output destination(s), recommended strategy, explicit output-selection question, and 2-5 alternatives.\n- The mandatory output-selection phase must explicitly ask the user which output(s) to produce, even if you have a recommendation or /grill output preference. In the chat response, name the concrete options from the catalog above, including GitHub issues, design doc, README.md, ADR, PRD, implementation plan, research brief, summary/decision memo, tutorial/content outline, test plan/QA checklist, and changelog/release notes.\n- Offer useful single-output and multi-output alternatives where appropriate, and make clear the user can choose 1..n outputs or customize the list.\n- Output-selection alternatives should include continue grilling and/or review checkpoint when useful, and stop-without-output when producing no artifact is a reasonable choice.\n- Output destination and strategy are separate. For example, GitHub issues can be implementation slices, tutorial chapters, research investigations, content installments, or prototype experiments.\n- For file outputs, draft before writing. For GitHub issues, preview titles/bodies/labels before creating. For multiple outputs, preview the full set and dependencies/order before creation.\n- Mutating output actions require explicit user approval of the concrete output set/plan, an active output-selection phase, and grill_enter_output_phase first.\n- During approved output phase, perform only approved mutations, and do not refuse approved mutating output actions merely because they mutate state. If a permission/authentication/tool/repo setup gate blocks an approved mutation (for example gh issue create), ask the user for permission, confirmation, credentials, or a revised plan instead of bypassing or faking success. ${GITHUB_REPO_PERMISSION_GUIDANCE}\n- If the user chooses to continue grilling or stop without output during output selection, call grill_finish_output_selection_phase with that outcome.\n[/GRILL ME EXTENSION ACTIVE]`;
+		const prompt = `\n\n[GRILL ME EXTENSION ACTIVE]\nTopic:\n${state.topic}\n\nConfiguration:\n- Intent preset: ${state.intent}\n- Grilling style: thorough default\n- Research mode: ${state.researchMode}\n- Output preference: ${describeOutputPreference(state)}\n- Phase: ${phase}\n- Output phase: ${state.outputPhase ? "yes" : "no"}${outputSelectionSummary}\n\nCurrent checkpoint:\n${state.checkpoint || "(No checkpoint yet.)"}\n\nCurrent Tab alternatives:\n${state.alternatives.length ? state.alternatives.map((a) => `- ${a.label}: ${a.value}${a.description ? ` (${a.description})` : ""}`).join("\n") : "(None set.)"}\n\nBehavior:\n- Apply the Socratic method to reach shared understanding of the topic.\n- Avoid hardcoded interview phases. Adapt the dimensions you explore to the subject and to the user's expertise.\n- The output-selection phase is the one hardcoded terminal phase: it is mandatory before stopping the Grill Me work, stopping without outputs, or producing outputs.\n- Treat desired outcome mode as important: learning, building, researching, content/tutorial creation, decision review, etc.\n- Do not set or assume a default output mode for the session. A missing output preference means no output has been chosen yet, not design-doc or any other default.\n- Treat /grill output as a preference only, not production approval. Always explicitly ask/confirm which output(s) to produce before output production.\n- Support 1..n outputs in one approved output plan; for example, a design doc AND uploaded GitHub issues.\n- The output-selection phase must explicitly mention concrete output destinations by name. Use this catalog and allow custom combinations:\n${outputDestinationOptionsMarkdown()}\n- Ask mostly one focused question at a time. Small grouped questions are allowed only when inseparable.\n- Ask more than the minimum needed for a shallow summary: keep drilling until the meaningful dependency branches are resolved, contradicted, or intentionally deferred.\n- Every grill question must present 2-5 concrete answer alternatives. Before asking the question, call grill_set_alternatives so the user can fill/cycle those alternatives with Tab and send the selected or edited reply with Enter. Also show the same alternatives briefly in chat.\n- Include enough context for the user to choose between alternatives: for each option, explain when it fits, the major tradeoff/consequence, or the assumption it implies. Do not offer bare labels that require guessing.\n- Include your recommended answer by default with each grill question and mark it as recommended in the label and/or description.\n- ${thoroughGrillingGuidance}\n- ${researchGuidance[state.researchMode]}\n- ${outputPhaseGuidance}\n\nCheckpoint rule:\n- The checkpoint is the source of durable shared understanding.\n- Whenever the user's answer meaningfully changes shared understanding, call grill_update_checkpoint with a full replacement Markdown checkpoint and a concise changeSummary BEFORE asking the next grill question.\n- The checkpoint should be adaptive Markdown. Add/remove sections as appropriate for the topic.\n- Keep a coverage checklist and decision-branch ledger in the checkpoint when useful; update branch status as resolved, open, contradicted, or intentionally deferred.\n- If there is no meaningful change, you may ask the next question without updating.\n\nReadiness/output rule:\n- When you think shared understanding is good enough, do not merely present a prompt-only readiness gate. First verify that the major coverage branches are resolved or explicitly deferred, then call grill_enter_output_selection_phase with the rationale, recommended output destination(s), recommended strategy, explicit output-selection question, and 2-5 alternatives.\n- The mandatory output-selection phase must explicitly ask the user which output(s) to produce, even if you have a recommendation or /grill output preference. In the chat response, name the concrete options from the catalog above, including GitHub issues, design doc, README.md, ADR, PRD, implementation plan, research brief, summary/decision memo, tutorial/content outline, test plan/QA checklist, and changelog/release notes.\n- Offer useful single-output and multi-output alternatives where appropriate, and make clear the user can choose 1..n outputs or customize the list.\n- Output-selection alternatives should include continue grilling and/or review checkpoint when useful, and stop-without-output when producing no artifact is a reasonable choice.\n- Output destination and strategy are separate. For example, GitHub issues can be implementation slices, tutorial chapters, research investigations, content installments, or prototype experiments.\n- For file outputs, draft before writing. For GitHub issues, preview titles/bodies/labels before creating. For multiple outputs, preview the full set and dependencies/order before creation.\n- Mutating output actions require explicit user approval of the concrete output set/plan, an active output-selection phase, and grill_enter_output_phase first.\n- During approved output phase, perform only approved mutations, and do not refuse approved mutating output actions merely because they mutate state. If a permission/authentication/tool/repo setup gate blocks an approved mutation (for example gh issue create), ask the user for permission, confirmation, credentials, or a revised plan instead of bypassing or faking success. ${GITHUB_REPO_PERMISSION_GUIDANCE}\n- If the user chooses to continue grilling or stop without output during output selection, call grill_finish_output_selection_phase with that outcome.\n[/GRILL ME EXTENSION ACTIVE]`;
 
 		return { systemPrompt: event.systemPrompt + prompt };
 	});
@@ -1060,6 +1084,7 @@ export default function grillMeExtension(pi: ExtensionAPI): void {
 		ctx.ui.setEditorComponent((tui, theme, keybindings) => new GrillReplyEditor(tui, theme, keybindings, () => state));
 		ctx.ui.addAutocompleteProvider((current) => createGrillAutocompleteProvider(current, () => state));
 		state = cloneState(DEFAULT_STATE);
+		setGrillToolsEnabled(false);
 		const entries = ctx.sessionManager.getBranch();
 		for (const entry of entries as any[]) {
 			if (entry?.type === "custom" && entry.customType === STATE_ENTRY_TYPE && entry.data) {
@@ -1069,6 +1094,7 @@ export default function grillMeExtension(pi: ExtensionAPI): void {
 				if (state.phase !== "output") state.outputPhase = false;
 			}
 		}
+		setGrillToolsEnabled(state.active);
 		updateUi(ctx);
 	});
 }
