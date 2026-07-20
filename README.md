@@ -6,7 +6,10 @@ A pi extension for thorough Socratic planning sessions. It keeps a shared-unders
 
 ```bash
 pi install git:github.com/majorgilles/pi-grill-me
+pi install npm:@juicesharp/rpiv-ask-user-question
 ```
+
+Grill Me delivers its questions through the `ask_user_question` tool, so `@juicesharp/rpiv-ask-user-question` must be installed alongside it.
 
 For a one-off run without adding it to settings:
 
@@ -30,7 +33,6 @@ pi -e git:github.com/majorgilles/pi-grill-me
 
 While active, the extension injects Grill Me instructions into the agent context and exposes these assistant tools:
 
-- `grill_set_alternatives`
 - `grill_update_checkpoint`
 - `grill_enter_output_selection_phase`
 - `grill_finish_output_selection_phase`
@@ -39,9 +41,9 @@ While active, the extension injects Grill Me instructions into the agent context
 
 During interview mode it blocks `edit`, `write`, and bash commands that appear mutating. Grill Me uses one thorough default grilling style. The assistant is instructed to maintain a coverage checklist and decision-branch ledger in the checkpoint, ask enough follow-up questions to resolve or intentionally defer major branches, and avoid premature readiness. Grill Me does not assume a default output mode; when the interview is ready to end, the assistant must enter the hardcoded output-selection phase, ask which output(s) to produce, and support one or many outputs, such as a design doc and uploaded GitHub issues. Output production can only start after the user approves a concrete plan from that selection phase; choosing to continue grilling or stop without output is recorded separately.
 
-## Tab reply selection
+## Question delivery
 
-When Grill Me alternatives are active, `Tab` fills the editor with a suggested reply and repeated `Tab` cycles through the available replies. `Shift+Tab` cycles backward. Press `Enter` to send the selected reply, or edit the inserted text before pressing `Enter` to send a custom answer. If you type a short filter first, `Tab` selects the first matching alternative; free-form text is left alone.
+Grill Me asks its Socratic questions through the `ask_user_question` dialog (provided by `npm:@juicesharp/rpiv-ask-user-question`). Each question is a single structured prompt with 2-4 options; the recommended option is listed first with "(Recommended)". The output-selection question uses `multiSelect` when more than one output may be chosen. The user can always type a custom answer, pick "Chat about this" to abandon the dialog, or choose continue grilling / review checkpoint / stop without output.
 
 ## Output selection options
 
