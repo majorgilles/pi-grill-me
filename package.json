@@ -26,6 +26,9 @@
       "./index.ts"
     ]
   },
+  "dependencies": {
+    "pi-tool-masking": "1.2.3"
+  },
   "peerDependencies": {
     "@earendil-works/pi-coding-agent": "*",
     "@earendil-works/pi-tui": "*",

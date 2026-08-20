@@ -12,6 +12,7 @@ import {
 	type TUI,
 } from "@earendil-works/pi-tui";
 import { Type } from "typebox";
+import { defineToolset, getDefaultResolutionMode } from "pi-tool-masking";
 
 type Intent = "auto" | "plan" | "learn" | "research" | "content" | "decide";
 type ResearchMode = "off" | "ask" | "auto";
@@ -630,6 +631,7 @@ export default function grillMeExtension(pi: ExtensionAPI): void {
 
 			if (command === "stop") {
 				state.active = false;
+				grillToolset.disable(pi);
 				state.phase = "interview";
 				state.outputPhase = false;
 				state.outputSelection = undefined;
@@ -694,6 +696,14 @@ export default function grillMeExtension(pi: ExtensionAPI): void {
 				return;
 			}
 
+			if (getDefaultResolutionMode() === "allowlist" && !grillToolset.isEnabled(pi)) {
+				ctx.ui.notify(
+					"Grill tools are masked by an active tool allowlist (focus mode) from another plugin. Turn that allowlist off or add pi-grill-me.tools to it to start a grill session.",
+					"warning",
+				);
+				return;
+			}
+
 			const parsed = parseArgs(trimmed);
 			const partial: Partial<GrillState> = {};
 			const intent = asIntent(parsed.flags.intent);
@@ -716,6 +726,8 @@ export default function grillMeExtension(pi: ExtensionAPI): void {
 					topic = edited.trim();
 				}
 			}
+
+			grillToolset.enable(pi);
 
 			startSession(topic, ctx, partial);
 		},
@@ -916,6 +928,7 @@ export default function grillMeExtension(pi: ExtensionAPI): void {
 
 			if (outcome === "stop-without-output" || outcome === "stop" || outcome === "no-output" || outcome === "none") {
 				state.active = false;
+				grillToolset.disable(pi);
 				state.phase = "interview";
 				state.outputPhase = false;
 				state.outputSelection = undefined;
@@ -998,6 +1011,20 @@ export default function grillMeExtension(pi: ExtensionAPI): void {
 				details: { phase: currentPhase(state), outputPhase: false, summary: params.summary },
 			};
 		},
+	});
+
+	const grillToolset = defineToolset(pi, {
+		id: "pi-grill-me.tools",
+		names: new Set([
+			"grill_update_checkpoint",
+			"grill_set_alternatives",
+			"grill_enter_output_selection_phase",
+			"grill_finish_output_selection_phase",
+			"grill_enter_output_phase",
+			"grill_finish_output_phase",
+		]),
+		persistKey: "toolset-state:pi-grill-me.tools",
+		defaultEnabled: false,
 	});
 
 	pi.on("tool_call", async (event) => {
